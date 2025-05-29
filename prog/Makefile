@@ -1,6 +1,6 @@
 # Top-level Makefile
 
-SUBDIRS := libmysyslog myRPC-server myRPC-client
+SUBDIRS := libmysyslog prog-server prog-client
 
 .PHONY: all clean deb
 
@@ -17,5 +17,5 @@ clean:
 deb: all
 	@mkdir -p deb
 	$(MAKE) -C libmysyslog deb
-	$(MAKE) -C myRPC-server deb
-	$(MAKE) -C myRPC-client deb
+	$(MAKE) -C prog-server deb
+	$(MAKE) -C prog-client deb
