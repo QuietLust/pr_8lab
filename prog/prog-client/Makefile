@@ -1,4 +1,4 @@
-# Makefile for prog-client
+# Makefile for myRPC-client
 
 CC        := gcc
 CFLAGS    := -Wall -g -I../libmysyslog
