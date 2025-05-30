@@ -73,7 +73,7 @@ sudo dpkg -i deb/libmysyslog_1.0-1_amd64.deb
 1. Создайте конфигурационный файл `/etc/myRPC/myRPC.conf` для настройки параметров сервера. Пример файла:
 ```conf
 sudo mkdir -p /etc/myRPC
-echo -e "port=1234\nsocket_type=stream" | sudo tee /etc/myRPC/myRPC.conf
+echo -e "port=5465\nsocket_type=stream" | sudo tee /etc/myRPC/myRPC.conf
 ```
 
 2. Создайте файл пользователей `/etc/myRPC/users.conf`, в котором указаны разрешённые пользователи:
