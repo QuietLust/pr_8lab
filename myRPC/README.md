@@ -90,10 +90,10 @@ echo "sa" | sudo tee /etc/myRPC/users.conf
 1. Отправка команды с использованием потокового сокета (TCP):
 ```sh
 # TCP-соединение
-myrpc-client -h 127.0.0.1 -p 1234 -s -c "date"
+myrpc-client -h 127.0.0.1 -p 5465 -s -c "date"
 
 # UDP-соединение
-myrpc-client -h 127.0.0.1 -p 1234 -d -c "date"
+myrpc-client -h 127.0.0.1 -p 5465 -d -c "date"
 ```
 
 ### myrpc-server
