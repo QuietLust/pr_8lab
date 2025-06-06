@@ -3,20 +3,22 @@
 #include <string.h>
 #include "config_parser.h"
 
-Config parse_config(const char *filename) {
+// Разбор конфигурационного файла
+Config parse_config(const char *config_path) {
     Config config;
     config.port = 0;
     strcpy(config.socket_type, "stream");
 
-    FILE *file = fopen(filename, "r");
-    if (!file) {
+    FILE *config_file = fopen(config_path, "r");
+    if (!config_file) {
         perror("Failed to open config file");
         return config;
     }
 
     char line[256];
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), config_file)) {
         line[strcspn(line, "\n")] = '\0';
+        // Пропуск комментариев и пустых строк
         if (line[0] == '#' || strlen(line) == 0)
             continue;
 
@@ -30,6 +32,6 @@ Config parse_config(const char *filename) {
         }
     }
 
-    fclose(file);
+    fclose(config_file);
     return config;
 }
