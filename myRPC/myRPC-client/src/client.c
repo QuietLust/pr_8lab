@@ -1,136 +1,136 @@
-#include "../../include/myRPC-client/myRPC-client.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <pwd.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include "libmysyslog.h"
 
-void show_help();
+#define BUFFER_SIZE 1024
 
-
-void show_help() 
-{
-    printf("Usage: ./myRPC-client [options]\n");
+// Вывод справки
+void print_help() {
+    printf("Usage: myRPC-client [OPTIONS]\n");
     printf("Options:\n");
-    printf("    -c, --command \"bash-command\"  Executing command\n");
-    printf("    -h, --host \"ipv4\"             Host IP address\n");
-    printf("    -p, --port PORT                 Host port\n");
-    printf("    -s, --stream                    Use stream socket\n");
-    printf("    -d, --dgram                     Use datagram socket\n");
-    printf("        --help                      Display this again\n");
+    printf("  -c, --command \"bash_command\"   Command to execute\n");
+    printf("  -h, --host \"ip_address\"        Server IP address\n");
+    printf("  -p, --port PORT                Server port\n");
+    printf("  -s, --stream                   Use stream socket\n");
+    printf("  -d, --dgram                    Use datagram socket\n");
+    printf("      --help                     Show help and exit\n");
 }
 
-int main(int argc, char* argv[]) 
-{
-    FILE* out = stdout;
-    FILE* err = stderr;
-    char* command = NULL; 
-    char* host_ip = NULL;
-    char request[BUFFER_SIZE + 1]; 
-    int based_socket = 1; // using based stream socket
-    int option_ind = 0;
-    int sockfd = 0;
-    int result = 0;
-    int port = 5555;
+int main(int argc, char *argv[]) {
+    char *command = NULL;
+    char *server_ip = NULL;
+    int port = 0;
+    int use_stream = 1;
+    int option;
 
-    const char* short_options = "c:h:p:sd";
-
-    const struct option long_options[] = 
-    {
-        {"command",     required_argument,  NULL, 'c'},
-        {"host",        required_argument,  NULL, 'h'},
-        {"port",        required_argument,  NULL, 'p'},
-        {"stream",      no_argument,        NULL, 's'},
-        {"dgram",       no_argument,        NULL, 'd'},
-        {"help",        no_argument,        NULL,   0},
-        {NULL,          0,                  NULL,   0}
+    static struct option long_options[] = {
+        {"command", required_argument, 0, 'c'},
+        {"host", required_argument, 0, 'h'},
+        {"port", required_argument, 0, 'p'},
+        {"stream", no_argument, 0, 's'},
+        {"dgram", no_argument, 0, 'd'},
+        {"help", no_argument, 0,  0 },
+        {0, 0, 0, 0}
     };
 
-    const struct passwd* pw = getpwuid(getuid());
-    char* username = pw->pw_name;
-
-    struct sockaddr_in sAddr;
-    memset(&sAddr, 0, sizeof(sAddr)); 
-
-    while((result = getopt_long(argc, argv, short_options, long_options, &option_ind))!=-1)
-    {
-        switch(result)
-        {
+    int option_index = 0;
+    while ((option = getopt_long(argc, argv, "c:h:p:sd", long_options, &option_index)) != -1) {
+        switch (option) {
             case 'c':
                 command = optarg;
                 break;
             case 'h':
-                host_ip = optarg;
+                server_ip = optarg;
                 break;
             case 'p':
                 port = atoi(optarg);
                 break;
             case 's':
-                break; // now we're using stream socket by default
+                use_stream = 1;
+                break;
             case 'd':
-                based_socket = 0; //choosing d-gram socket
+                use_stream = 0;
                 break;
+            case 0:
+                print_help();
+                return 0;
             default:
-                show_help();
-                break;
+                print_help();
+                return 1;
         }
     }
 
-    if ((!command || !host_ip || !port) && argc >= 1) 
-    {
-        fprintf(err, "You should use required args\n");
-        show_help();
+    if (!command || !server_ip || !port) {
+        fprintf(stderr, "Error: Missing required arguments\n");
+        print_help();
         return 1;
     }
 
-    snprintf(request, BUFFER_SIZE + 1, "%s: %s", username, command);
+    struct passwd *pw = getpwuid(getuid());
+    char *username = pw->pw_name;
 
-    mysyslog("Trying to connect server.", INFO, 0, 0, "/var/log/myrpc.log");
+    char request[BUFFER_SIZE];
+    snprintf(request, BUFFER_SIZE, "%s: %s", username, command);
 
+    mysyslog("Connecting to server...", INFO, 0, 0, "/var/log/myrpc.log");
 
-    sAddr.sin_family = AF_INET;
-    sAddr.sin_port = htons(port);
-    inet_pton(AF_INET, host_ip, &sAddr.sin_addr);
-
-    if (based_socket) {
-        sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd < 0) {
-            mysyslog("Failed to creating socket", ERROR, 0, 0, "var/log/myrpc.log");
-            fprintf(err, "Failed to creating socket");
-            return 1;
-        } else {
-            if (connect(sockfd, (struct sockaddr*)&sAddr, sizeof(sAddr) < 0)) //casting sAddr and connecting to server
-            {
-                mysyslog("Failed to connect", ERROR, 0, 0, "/var/log/myrpc.log");
-                fprintf(err, "Failed to connect");
-                close(sockfd);
-                return 1;
-            }
-            
-            mysyslog("Successfully connected", INFO, 0, 0, "/var/log/myrpc.log");
-
-            send(sockfd, request, strlen(request), 0);
-
-            char response[BUFFER_SIZE + 1];
-            int rv = recv(sockfd, response, BUFFER_SIZE + 1, 0);
-            response[rv] = '\0';
-            fprintf(out, "Response is: %s\n", response);
-
-            mysyslog("Received server response", INFO, 0, 0, "/var/log/myrpc.log");
-        }
+    int client_socket;
+    if (use_stream) {
+        client_socket = socket(AF_INET, SOCK_STREAM, 0);
     } else {
-        sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sockfd < 0) {
-            mysyslog("Failed to creating socket", ERROR, 0, 0, "var/log/myrpc.log");
-            fprintf(err, "Failed to creating socket");
-            return 1;
-        } else {
-            sendto(sockfd, request, strlen(request), 0, (struct sockaddr*)&sAddr, sizeof(sAddr));
-        
-            socklen_t len = sizeof(sAddr);
-            char response[BUFFER_SIZE + 1];
-            int rv = recvfrom(sockfd, response, BUFFER_SIZE + 1, 0, (struct sockaddr*)&sAddr, &len);
-            response[rv] = '\0';
-            fprintf(out, "Response is: %s\n", response);
-
-            mysyslog("Received server response", INFO, 0, 0, "/var/log/myrpc.log");
-        }        
+        client_socket = socket(AF_INET, SOCK_DGRAM, 0);
     }
-    close(sockfd);
+
+    if (client_socket < 0) {
+        mysyslog("Socket creation failed", ERROR, 0, 0, "/var/log/myrpc.log");
+        perror("Socket creation failed");
+        return 1;
+    }
+
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    inet_pton(AF_INET, server_ip, &server_addr.sin_addr);
+
+    if (use_stream) {
+        if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+            mysyslog("Connection failed", ERROR, 0, 0, "/var/log/myrpc.log");
+            perror("Connection failed");
+            close(client_socket);
+            return 1;
+        }
+
+        mysyslog("Connected to server", INFO, 0, 0, "/var/log/myrpc.log");
+
+        send(client_socket, request, strlen(request), 0);
+
+        char response[BUFFER_SIZE];
+        int bytes_received = recv(client_socket, response, BUFFER_SIZE, 0);
+        response[bytes_received] = '\0';
+        printf("Server response: %s\n", response);
+
+        mysyslog("Received server response", INFO, 0, 0, "/var/log/myrpc.log");
+
+    } else {
+        sendto(client_socket, request, strlen(request), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+
+        char response[BUFFER_SIZE];
+        socklen_t addr_len = sizeof(server_addr);
+        int bytes_received = recvfrom(client_socket, response, BUFFER_SIZE, 0, (struct sockaddr*)&server_addr, &addr_len);
+        response[bytes_received] = '\0';
+        printf("Server response: %s\n", response);
+
+        mysyslog("Received server response", INFO, 0, 0, "/var/log/myrpc.log");
+    }
+
+    close(client_socket);
     return 0;
 }
